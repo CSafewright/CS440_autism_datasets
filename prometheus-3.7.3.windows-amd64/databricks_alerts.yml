@@ -1,0 +1,11 @@
+groups:
+  - name: databricks_alerts
+    rules:
+      - alert: DatabricksJobFailed
+        expr: count(databricks_job_run_state{state="FAILED"}) by (job_id) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Job {{ $labels.job_id }} has failed run(s)"
+          description: "One or more runs of job {{ $labels.job_id }} failed in the last 5 minutes."

@@ -1,0 +1,50 @@
+# databricks_exporter.py
+from flask import Flask, Response
+import requests
+
+app = Flask(__name__)
+
+DATABRICKS_INSTANCE = "your instance"
+DATABRICKS_TOKEN = "your token"
+JOB_IDS = "your job id"
+
+HEADERS = {"Authorization": f"Bearer {DATABRICKS_TOKEN}"}
+
+def fetch_job_runs(job_id, limit=5):
+    url = f"https://{DATABRICKS_INSTANCE}/api/2.1/jobs/runs/list?job_id={job_id}&limit={limit}"
+    response = requests.get(url, headers=HEADERS)
+    response.raise_for_status()
+    return response.json().get("runs", [])
+
+def prometheus_metrics():
+    metrics = []
+    for job_id in JOB_IDS.split(","):
+        runs = fetch_job_runs(job_id.strip())
+        for run in runs:
+            run_id = run["run_id"]
+            state = run["state"]["life_cycle_state"]
+            result_state = run["state"].get("result_state", "UNKNOWN")
+            start_time = run.get("start_time", 0)
+            end_time = run.get("end_time", 0)
+            duration_sec = (end_time - start_time) / 1000 if end_time else 0
+
+            # Gauge for run duration
+            metrics.append(f'databricks_job_run_duration_seconds{{job_id="{job_id}",run_id="{run_id}"}} {duration_sec}')
+
+            # Gauge for run state (0=not finished, 1=success, 2=failed)
+            state_value = 0
+            if result_state == "SUCCESS":
+                state_value = 1
+            elif result_state == "FAILED":
+                state_value = 2
+            metrics.append(f'databricks_job_run_state{{job_id="{job_id}",run_id="{run_id}",state="{result_state}"}} {state_value}')
+
+    return "\n".join(metrics)
+
+@app.route("/metrics")
+def metrics():
+    data = prometheus_metrics()
+    return Response(data, mimetype="text/plain")
+
+if __name__ == "__main__":
+    app.run(port=8001)

@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+rule_files:
+  - "databricks_alerts.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          app: "prometheus"
+
+  - job_name: "databricks_job_visualization"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["localhost:8000"]
+        labels:
+          app: "databricks_visualization"
+
+  - job_name: "databricks_job_dataCleaning"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["localhost:8001"]
+        labels:
+          app: "databricks_dataCleaning"
