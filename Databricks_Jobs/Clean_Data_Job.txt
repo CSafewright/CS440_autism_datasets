@@ -1,0 +1,26 @@
+resources:
+  jobs:
+    Clean_Autism_Data:
+      name: Clean_Autism_Data
+      trigger:
+        pause_status: UNPAUSED
+        periodic:
+          interval: 1
+          unit: DAYS
+      tasks:
+        - task_key: Clean_Autism_Data
+          spark_python_task:
+            python_file: /Workspace/Users/YOUR_USER_ID@radford.edu/Autism_DataEngineering/Autism_DataPipeline/AutismDataClass.py
+          environment_key: Default
+        - task_key: Start_Matplot_Visualization
+          depends_on:
+            - task_key: Clean_Autism_Data
+          run_job_task:
+            job_id: YOUR_JOB_ID
+      queue:
+        enabled: true
+      environments:
+        - environment_key: Default
+          spec:
+            environment_version: "4"
+      performance_target: PERFORMANCE_OPTIMIZED
