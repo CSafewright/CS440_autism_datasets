@@ -7,7 +7,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess
 import io
 
 # Load cleaned data
-df = pd.read_csv('autism_cleaned_data2.csv')
+df = pd.read_csv('autism_cleaned_updated.csv')
 
 # Define bins for Sample Size
 bins = [0, 10000, 500000, 5000000, np.inf]
