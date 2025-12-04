@@ -1,4 +1,6 @@
-!pip install sodapy
+import sys
+import subprocess
+subprocess.check_call([sys.executable, "-m", "pip", "install", "sodapy"])
 
 from sodapy import Socrata
 from pyspark.sql import DataFrame, SparkSession
@@ -8,10 +10,23 @@ import pandas as pd
 spark = SparkSession.builder.getOrCreate()
 
 def get_data_cdc_api():
+    """
+    Retrieves data from the CDC API.
+    Returns:
+    list: a list of dictionaries containing the data from the API
+    """
     client = Socrata('data.cdc.gov', None)
     return client.get("9mw4-6adp", limit=2000)
 
+
 def drop_unneeded_columns(df : DataFrame) -> DataFrame:
+    """
+    Drops unneeded columns from the DataFrame.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with unneeded columns dropped
+    """
     return df.drop('title','link_to_publication', 'cdc_calculated_values',
          'adaptive_score_70', 'diagnosis_age_range_months',
          'diagnosis_median_age_months', 'diagnosis_mean_age_months',
@@ -20,29 +35,66 @@ def drop_unneeded_columns(df : DataFrame) -> DataFrame:
          'white_black_prevalence_ratio', 'autism_types_included',
          'case_criterion', 'confidence_interval_ci', 'case_identification_method')
     
+
 def fill_areas(df : DataFrame) -> DataFrame:
+    """
+    Fills missing values in 'Area(s)' column with 'Unknown'.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with 'Area(s)' column filled with 'Unknown'
+    """
     return df.withColumnRenamed("area_s", "Area(s)").fillna({'Area(s)': 'Unknown'})
 
+
 def clean_age(df : DataFrame) -> DataFrame:
+    """
+    Cleans the 'Age Range' column by removing the '18 to 64' value.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with 'Age Range' column cleaned
+    """
     return df.filter(col('Age Range') != "18 to 64")
 
+
 def clean_sample_size(df : DataFrame) -> DataFrame:
+    """
+    Cleans the 'Sample Size' column by removing commas and replacing empty strings with NULL.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with 'Sample Size' column cleaned
+    """
     return (
         df.dropna(subset=["sample_size"])
         .withColumn("sample_size", regexp_replace(col("sample_size"), ",", ""))
         .withColumnRenamed('sample_size', 'Sample Size')
     )
 
+
 def clean_number_cases(df : DataFrame) -> DataFrame:
+    """
+    Cleans the 'Number of Cases' column by removing commas and replacing empty strings with NULL.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with 'Number of Cases' column cleaned
+    """
     return (
         df.dropna(subset=["number_of_cases"])
         .withColumn("number_of_cases", regexp_replace(col("number_of_cases"), ",", ""))
         .withColumnRenamed('number_of_cases', 'Number of Cases')
     )
 
+
 def split_study_years(df: DataFrame) -> DataFrame:
     """
     Extracts first and last 4-digit years from 'Study Years' into 'Year Started' and 'Year Ended'.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with two new columns: Year Started and Year Ended
     """
     return (
         df.withColumnRenamed('study_years', 'Study Years')
@@ -50,8 +102,15 @@ def split_study_years(df: DataFrame) -> DataFrame:
         .withColumn("Year Ended", regexp_extract(col("Study Years"), r"(\d{4})$", 1))
     )
 
+
 def fill_missing_study_years(df : DataFrame) -> DataFrame:
-    # Fill missing Year Started / Year Ended with Year Published
+    '''
+    Fills missing Year Started / Year Ended with Year Published
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with Year Started / Year Ended filled with Year Published
+    '''
     return (
         df.withColumnRenamed('year_published', 'Year Published')
         .withColumn("Year Started", when(col("Year Started").isNull(), col("Year Published")).otherwise(col("Year Started")))
@@ -61,10 +120,13 @@ def fill_missing_study_years(df : DataFrame) -> DataFrame:
 
 def parse_age_range(df: DataFrame) -> DataFrame:
     """
-    Extracts Youngest and Oldest Age from 'Age Range' column and casts safely to double.
+    Uses regex pattern to extract Youngest and Oldest Age from 'Age Range' column. Creates two new columns from these.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with two new columns: Youngest Age and Oldest Age
     """
     pattern = r'(\d+(?:\s*\.\s*\d+)?)\s*to\s*(\d+(?:\s*\.\s*\d+)?)'
-
     return (
         df
         .withColumnRenamed('age_range', 'Age Range')
@@ -94,13 +156,15 @@ def age_cast_numeric(df: DataFrame) -> DataFrame:
         df = df.withColumn(c, expr(f"try_cast(`{c}` as {'double'})"))
     return df
 
-def drop_age_range(df : DataFrame) -> DataFrame:
-    return df.drop("Age Range")
-
-def drop_study_years(df : DataFrame) -> DataFrame:
-    return df.drop("Study Years")
 
 def convert_to_nums(df : DataFrame) -> DataFrame:
+    """
+    Converts columns to numeric types.
+    Parameters:
+    df (DataFrame): a spark DataFrame
+    Returns:
+    DataFrame: a spark DataFrame with columns converted to numeric types
+    """
     int_cols = ['Year Started', 'Year Ended', 'Sample Size', 'Number of Cases']
     double_cols = ['Youngest Age', 'Oldest Age']
     for c in int_cols:
@@ -130,7 +194,11 @@ def fill_mf_ratio_mean(df: DataFrame) -> DataFrame:
     Computes the mean of 'Male:Female Sex Ratio' column and fills missing values with it.
     """
     avg_val = df.agg(mean("male_female_sex_ratio").alias("avg_ratio")).collect()[0]["avg_ratio"]
-    return df.fillna({"male_female_sex_ratio": avg_val}).withColumnRenamed('male_female_sex_ratio', 'Male:Female Sex Ratio')
+    return (
+        df.withColumn("male_female_sex_ratio", col("male_female_sex_ratio").cast("double"))
+        .fillna({"male_female_sex_ratio": avg_val})
+        .withColumnRenamed('male_female_sex_ratio', 'Male:Female Sex Ratio')
+    )
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -147,8 +215,8 @@ df = split_study_years(df)
 df = fill_missing_study_years(df)
 df = parse_age_range(df)
 df = age_cast_numeric(df)
-df = drop_age_range(df)
-df = drop_study_years(df)
+df = df.drop("Age Range")
+df = df.drop("Study Years")
 df = convert_to_nums(df)
 df = fill_age_means(df)
 df = fill_mf_ratio_mean(df)
