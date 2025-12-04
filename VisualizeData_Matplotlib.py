@@ -1,3 +1,4 @@
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -9,18 +10,16 @@ import io
 df = pd.read_csv('autism_cleaned_data2.csv')
 
 # Define bins for Sample Size
-bins = [0, 100, 1000, 10000, 100000, 500000, np.inf]
-labels = ['Very Small', 'Small', 'Medium', 'Large', 'Very Large', 'Huge']
+bins = [0, 10000, 500000, 5000000, np.inf]
+labels = ['0-10,000', '10,001-500,000', '500,001-5,000,000', '5,000,001+']
 df['Sample Size Bin'] = pd.cut(df['Sample Size'], bins=bins, labels=labels, include_lowest=True)
 
 # Map bin labels to colors
 color_map = {
-    'Very Small': 'green',
-    'Small': 'yellow',
-    'Medium': 'orange',
-    'Large': 'red',
-    'Very Large': 'blue',
-    'Huge': 'purple'
+    '0-10,000': 'green',
+    '10,001-500,000': 'yellow',
+    '500,001-5,000,000': 'blue',
+    '5,000,001+': 'red'
 }
 colors = df['Sample Size Bin'].map(color_map)
 
@@ -48,11 +47,10 @@ ax.legend(handles=patches, title='Sample Size', loc='best')
 
 ax.set_xlabel("Year Published")
 ax.set_ylabel("ASD Prevalence Estimate per 1,000")
-ax.set_title("Autism Prevalence by Year (Sample Size Color)")
+ax.set_title("Global Autism Prevalence by Year (Sample Size Color)")
 ax.grid(True)
 
-# Save static image
+
 fig.savefig("autism_plot.png", bbox_inches='tight')
-
+#plt.show()
 plt.close(fig)
-
