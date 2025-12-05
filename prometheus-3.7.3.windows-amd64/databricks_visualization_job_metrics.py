@@ -3,6 +3,10 @@ import requests
 
 app = Flask(__name__)
 
+# When you create the job in Databricks, you'll have a unique ID.
+# The instance is just the url before the workspace/directory information
+# The access token is like a password for your account, so I won't share it.
+# The access token can be created in account settings
 DATABRICKS_INSTANCE = "your instance"
 DATABRICKS_TOKEN = "your token"
 JOB_IDS = "your job id"
@@ -27,10 +31,10 @@ def prometheus_metrics():
             end_time = run.get("end_time", 0)
             duration_sec = (end_time - start_time) / 1000 if end_time else 0
 
-            # Gauge for run duration
+            # Run duration
             metrics.append(f'databricks_job_run_duration_seconds{{job_id="{job_id}",run_id="{run_id}"}} {duration_sec}')
 
-            # Gauge for run state (0=not finished, 1=success, 2=failed)
+            # Run state (0=not finished, 1=success, 2=failed)
             state_value = 0
             if result_state == "SUCCESS":
                 state_value = 1
